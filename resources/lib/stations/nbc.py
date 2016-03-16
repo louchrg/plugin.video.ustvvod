@@ -31,7 +31,7 @@ SHOWS = "http://www.nbc.com/ajax/dropdowns-global/America-New_York"
 EPISODES = "http://www.nbc.com/data/node/%s/video_carousel"
 VIDEOPAGE = "http://videoservices.nbcuni.com/player/clip?clear=true&domainReq=www.nbc.com&geoIP=US&clipId=%s"
 SMIL_BASE = "http://video.nbcuni.com/"
-SMIL = "http://link.theplatform.com/s/NnzsPC/%s?mbr=true&mbr=true&player=Onsite%%20Player&policy=43674&manifest=m3u&format=SMIL&Tracking=true&Embedded=true&formats=MPEG4,F4M,FLV,MP3"
+SMIL = "http://link.theplatform.com/s/NnzsPC/media/%s?mbr=true&mbr=true&player=Onsite%%20Player&policy=43674&manifest=m3u&format=SMIL&Tracking=true&Embedded=true&formats=MPEG4,F4M,FLV,MP3"
 TONIGHT_SHOW_FEED = "%s/content/a/filter-items/?type=video"
 
 def masterlist():
@@ -246,11 +246,19 @@ def play_video(video_url = common.args.url, tonightshow = False):
 	closedcaption = None
 	video_data = connection.getURL(video_url)
 	if 'link.theplatform.com' not in video_url:
+		print "Getting player link"
 		video_tree =  BeautifulSoup(video_data, 'html.parser')
 		player_url = video_tree.find('div', class_ = 'video-player-full')['data-mpx-url']
+		if 'http' not in player_url:
+			player_url = 'http:' + player_url
 		player_data = connection.getURL(player_url)
 		player_tree =  BeautifulSoup(player_data, 'html.parser')
-		smil_url = player_tree.find('link', type = "application/smil+xml")['href']
+		try:
+			smil_url = player_tree.find('link', type = "application/smil+xml")['href']
+		except:
+			media_url = player_tree.find('meta', attrs={ 'name' :'twitter:player'})['content']
+			pid = re.compile('media.(.*)\?').findall(media_url)[0]
+			smil_url = SMIL % pid
 		video_data = connection.getURL(smil_url + '&manifest=m3u&format=SMIL')
 	smil_tree = BeautifulSoup(video_data, 'html.parser')
 	if smil_tree.find('param', attrs = {'name' : 'isException', 'value' : 'true'}) is None:
@@ -363,6 +371,7 @@ def convert_subtitles(closedcaption):
 def list_qualities(video_url = common.args.url):
 	video_data = connection.getURL(video_url)
 	if 'link.theplatform.com' not in video_url:
+		print "Getting player link"
 		video_tree =  BeautifulSoup(video_data, 'html.parser')
 		player_url = video_tree.find('div', class_ = 'video-player-full')['data-mpx-url']
 		player_data = connection.getURL(player_url)
