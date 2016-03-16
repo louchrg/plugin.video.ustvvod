@@ -1,3 +1,9 @@
+version 1.4.1
+
+  * fix common issues
+  * fix CBS Shows
+  * fix NBC
+
 version 1.4.0
 
   * add MTV2
