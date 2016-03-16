@@ -37,23 +37,31 @@ def masterlist():
 	master_dict = {}
 	dupes = []
 	for master_url in (SHOWS, ORIGINALS, MOVIES):
+		
 		master_data = connection.getURL(master_url)
-		master_menu = simplejson.loads(master_data)['result']['data']
-		for master_item in master_menu:
-			show_id = master_item['show_id']
-			if show_id not in dupes:
-				dupes.append(show_id)
-				master_name = master_item['title']
-				if master_item['navigationItemLink'] and 'video' not in master_item['navigationItemLink'][0]['link'] and master_item['navigationItemLink'][0]['title'] == 'Watch':
-					season_url = master_item['navigationItemLink'][0]['link']
-				else:
-					if master_item['link'][-1:] == '/':
-						season_url = master_item['link'] + 'video'
-					else:
-						season_url =  master_item['link'] + '/video'
-				if BASE not in season_url:
-					season_url = BASE + season_url
-				master_dict[master_name] = season_url
+		try:
+			master_menu = simplejson.loads(master_data)['result']['data']
+			for master_item in master_menu:
+				
+				try:
+					show_id = master_item['show_id']
+					if show_id not in dupes:
+						dupes.append(show_id)
+						master_name = master_item['title']
+						if master_item['navigationItemLink'] and 'video' not in master_item['navigationItemLink'][0]['link'] and master_item['navigationItemLink'][0]['title'] == 'Watch':
+							season_url = master_item['navigationItemLink'][0]['link']
+						else:
+							if master_item['link'][-1:] == '/':
+								season_url = master_item['link'] + 'video'
+							else:
+								season_url =  master_item['link'] + '/video'
+						if BASE not in season_url:
+							season_url = BASE + season_url
+						master_dict[master_name] = season_url
+				except Exception, e:
+					print "Exception", e
+		except:
+			print "Exception with ", master_url
 	#check for missing shows
 	web_data = connection.getURL(BASE)
 	web_tree = BeautifulSoup(web_data, 'html.parser')
