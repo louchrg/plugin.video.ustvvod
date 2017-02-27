@@ -6,6 +6,7 @@ import ordereddict
 import re
 import simplejson
 import sys
+import traceback
 import urllib
 import ustvpaths
 import xbmc
@@ -24,7 +25,6 @@ ACCOUNTNAME = "CBS All Access"
 ACCOUNTINFOURL = "www.cbs.com/all-access"
 SHOWS = "http://www.cbs.com/carousels/showsByCategory/0/offset/0/limit/100"
 ORIGINALS = "http://www.cbs.com/carousels/showsByCategory/4/offset/0/limit/100"
-MOVIES = "http://www.cbs.com/carousels/showsByCategory/6/offset/0/limit/100"
 BASE  = "http://www.cbs.com"
 FULLEPISODES = "http://www.cbs.com/carousels/videosBySection/%s/offset/0/limit/100/xs/0/"
 FULLEPISODESWITHSEASON = "http://www.cbs.com/carousels/videosBySection/%s/offset/0/limit/80/xs/0/%s"
@@ -36,38 +36,42 @@ def masterlist():
 	master_db = []
 	master_dict = {}
 	dupes = []
-	for master_url in (SHOWS, ORIGINALS, MOVIES):
-		
+	for master_url in (SHOWS, ORIGINALS):
 		master_data = connection.getURL(master_url)
 		try:
 			master_menu = simplejson.loads(master_data)['result']['data']
 			for master_item in master_menu:
-				
 				try:
-					show_id = master_item['show_id']
+					show_id = master_item['showId']
 					if show_id not in dupes:
 						dupes.append(show_id)
 						master_name = master_item['title']
-						if master_item['navigationItemLink'] and 'video' not in master_item['navigationItemLink'][0]['link'] and master_item['navigationItemLink'][0]['title'] == 'Watch':
-							season_url = master_item['navigationItemLink'][0]['link']
+						if 'showGroupItemLinks' in master_item and len(master_item['showGroupItemLinks']) > 0 and master_item['showGroupItemLinks'][0]['title'] == 'Watch':
+							season_url = master_item['showGroupItemLinks'][0]['linkUrl']
 						else:
-							if master_item['link'][-1:] == '/':
-								season_url = master_item['link'] + 'video'
+							if master_item['showUrl'][-1] == '/':
+								season_url = master_item['showUrl'] + 'video'
 							else:
-								season_url =  master_item['link'] + '/video'
+								season_url = master_item['showUrl'] + '/video'
 						if BASE not in season_url:
 							season_url = BASE + season_url
 						master_dict[master_name] = season_url
-				except Exception, e:
-					print "Exception", e
+				except Exception:
+					print 'Exception parsing CBS show'
+					traceback.print_exc(10)
 		except:
 			print "Exception with ", master_url
+			traceback.print_exc(10)
 	#check for missing shows
-	web_data = connection.getURL(BASE)
-	web_tree = BeautifulSoup(web_data, 'html.parser')
-	for item in web_tree.find('div', id='show-drop-down').find_all('a'):
-		if item.text not in master_dict:
-			master_db.append((item.text , SITE, 'seasons', BASE + item['href'] + 'video'))
+	try:
+		web_data = connection.getURL(BASE)
+		web_tree = BeautifulSoup(web_data, 'html.parser')
+		for item in web_tree.find('div', id='globalShowsDropDown').find_all('a', target='_parent'):
+			if item.text not in master_dict:
+				master_db.append((item.text , SITE, 'seasons', BASE + item['href'] + 'video'))
+	except:
+		print 'Exception checking for missing shows'
+		traceback.print_exc(10)
 	for master_name, season_url in master_dict.iteritems():
 		master_db.append((master_name, SITE, 'seasons', season_url))
 	return master_db
@@ -118,7 +122,7 @@ def episodes(episode_url = common.args.url):
 		if episode_item['status'] == 'AVAILABLE' or (valid_login and episode_item['status'] == 'PREMIUM'):
 			videourl = episode_item['streaming_url']
 			HD = False
-			
+
 			episode_duration = int(common.format_seconds(episode_item['duration']))
 			episode_airdate = common.format_date(episode_item['airdate'], '%m/%d/%y')
 			if len(episode_item['label']) < len(episode_item['title']) and episode_item['label']:
@@ -212,7 +216,7 @@ def login(url):
 			return False
 		else:
 			return True
-			
+
 def play_video(video_url = common.args.url):
 	logged_in = login(video_url)
 	try:
@@ -241,14 +245,14 @@ def play_video(video_url = common.args.url):
 					bitrate = int(video_index['system-bitrate'])
 					if bitrate < lbitrate or lbitrate == -1:
 						lbitrate = bitrate
-						lplaypath_url = video_index['src']	
+						lplaypath_url = video_index['src']
 					if bitrate > hbitrate and bitrate <= sbitrate:
 						hbitrate = bitrate
-						playpath_url = video_index['src']	
+						playpath_url = video_index['src']
 				if playpath_url is None:
 					playpath_url = lplaypath_url
 			else:
-				bitrate = qbitrate 
+				bitrate = qbitrate
 				playpath_url = video_tree.switch.find('video', attrs = {'system-bitrate' : qbitrate})['src']
 			if '.mp4' in playpath_url:
 				playpath_url = 'mp4:' + playpath_url
